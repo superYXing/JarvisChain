@@ -27,6 +27,9 @@ Please return the analysis result in JSON format as follows:
     "needs_user_input": true/false,    // Whether user input is needed
     "is_task_complete": true/false,    // Whether the task is complete
     "next_prompt": "Next prompt"       // If user input is needed, provide appropriate prompt
+
+    notice:Only complex tasks like creating PowerPoint presentations or gathering research materials require confirming details with users.
+      For everyday conversations, there is no need to prompt users for input.
 }"""
             
             messages = [
@@ -43,7 +46,7 @@ Please return the analysis result in JSON format as follows:
                 "needs_continuation": False,
                 "needs_user_input": True,
                 "is_task_complete": True,
-                "next_prompt": "Is there anything else I can help you with?"
+                "next_prompt": "Can not handle right now. Is there anything else I can help you with?"
             })
     
     async def _arun(self, input_text: str) -> str:
@@ -61,11 +64,15 @@ Please return the analysis result in JSON format as follows:
     "needs_user_input": true/false,    // Whether user input is needed
     "is_task_complete": true/false,    // Whether the task is complete
     "next_prompt": "Next prompt"       // If user input is needed, provide appropriate prompt
+
+    Notice：
+    Only complex tasks like creating PowerPoint presentations or gathering research materials require confirming details
+      with users. For everyday conversations, there is no need to prompt users for input.
 }"""
             
             messages = [
                 SystemMessage(content=system_prompt),
-                HumanMessage(content=f"User input: {user_input}\nAI response: {response}")
+                HumanMessage(content=f"User input: {user_input}")
             ]
             
             result = await DECISION_MODEL.ainvoke(messages)
@@ -77,5 +84,5 @@ Please return the analysis result in JSON format as follows:
                 "needs_continuation": False,
                 "needs_user_input": True,
                 "is_task_complete": True,
-                "next_prompt": "Is there anything else I can help you with?"
+                "next_prompt": "Can not handle right now. Is there anything else I can help you with?"
             }) 

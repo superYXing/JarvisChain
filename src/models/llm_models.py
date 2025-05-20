@@ -1,6 +1,7 @@
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from src.config.config import MODEL_CONFIG, OPENAI_API_KEY, VECTOR_DB_CONFIG
 
+
 # Initialize all LLM models
 USER_PROFILE_MODEL = ChatOpenAI(
     model_name=MODEL_CONFIG["user_profile"]["model_name"],

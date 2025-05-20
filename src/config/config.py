@@ -1,11 +1,17 @@
 import os
+import openai
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# API key configuration
+# API key and base URL
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_BASE = os.getenv("OPENAI_API_BASE")
+
+# Set for openai client
+openai.api_key = OPENAI_API_KEY
+openai.api_base = OPENAI_API_BASE
 
 # Model configuration
 MODEL_CONFIG = {
@@ -41,4 +47,4 @@ VECTOR_DB_CONFIG = {
 # Short-term memory configuration
 MEMORY_CONFIG = {
     "max_history": 10
-} 
+}

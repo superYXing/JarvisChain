@@ -8,13 +8,13 @@ class ShortTermMemory:
         self.max_history = max_history
     
     def add(self, role: str, content: str):
-        """添加新的对话到记忆中"""
+        """Add new conversation to memory"""
         self.memory.append({"role": role, "content": content})
         if len(self.memory) > self.max_history:
             self.memory.pop(0)
     
     def get_memory_messages(self):
-        """获取格式化的对话历史"""
+        """Get formatted conversation history"""
         messages = []
         for item in self.memory:
             if item["role"] == "user":
@@ -24,5 +24,5 @@ class ShortTermMemory:
         return messages
     
     def clear(self):
-        """清空记忆"""
+        """Clear memory"""
         self.memory = [] 
