@@ -3,15 +3,19 @@ import json
 import warnings
 from langchain.agents import initialize_agent, AgentType
 from langchain.schema import SystemMessage, HumanMessage
+from langchain.memory import ConversationBufferMemory
 from src.models.llm_models import INTENT_MODEL
-from tools.ppt_tool import PPTTool
+from src.tools.ppt_add_tool import PPTAddTool
+from src.tools.ppt_remove_tool import PPTRemoveTool
+from src.tools.ppt_update_tool import PPTUpdateTool
 from src.tools.data_analysis_tool import DataAnalysisTool
-from src.tools.chat_tool import ChatTool
+
 from src.tools.user_interaction_tool import UserInteractionTool
 from src.tools.response_analysis_tool import ResponseAnalysisTool
+from src.tools.image_search_tool import ImageSearchTool
 from src.utils.user_profile import UserProfileManager
+from src.utils.memory_manager import MemoryManager
 from src.utils.logger import get_logger
-from src.database.vector_store import VectorStore
 
 # Suppress deprecation warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -23,169 +27,183 @@ logger = get_logger('main')
 async def main():
     # Initialize tools
     tools = [
-        PPTTool(),
+        PPTAddTool(),
+        PPTRemoveTool(),
+        PPTUpdateTool(),
         DataAnalysisTool(),
-        ChatTool(),
         UserInteractionTool(),
-        ResponseAnalysisTool()
+        ResponseAnalysisTool(),
+        ImageSearchTool()
     ]
     
+    logger.info("初始化工具完成")
+    
+    # Initialize memory manager for long-term knowledge
+    memory_manager = MemoryManager()
+    logger.info("初始化长期记忆管理器完成")
+    
+    # Initialize conversation memory for short-term context
+    conversation_memory = ConversationBufferMemory(
+        memory_key="chat_history",
+        return_messages=True
+    )
+    logger.info("初始化对话记忆完成")
+    
     # Initialize user profile manager
-    user_profile_manager = UserProfileManager()
+    userProfileManager = UserProfileManager()
+    logger.info("初始化用户配置文件管理器完成")
     
-    # Initialize vector store
-    vector_store = VectorStore()
-    
-    # Initialize planning agent
-    system_message = """You are an intelligent assistant that can help users complete various tasks.
-You can create presentations, analyze data, and engage in daily conversations.
+    # Initialize planning agent with memory
+    systemMessage = """你是一个智能助手，可以帮助用户完成各种任务。
+你可以创建演示文稿、分析数据、进行日常对话。你可以访问对话历史记录，并利用它提供更有上下文和个性化的响应。
 
-As a planner, you need to:
-1. Analyze user requirements and create execution plans, may be more than onoe tools needed to be used
-2. Determine what operations to perform at each step
-3. Judge whether user input is needed, 
-If it's just a simple greeting like "hello" or "hi", there's no need to call any tools.
-4. Decide next steps based on execution results
-5.Please wait user's interaction at the first chat.
-Available tools:
-- ppt_tool: For creating and editing, optimizing PPTs
-- data_analysis_tool: For data analysis and visualization
-- chat_tool: For daily conversations
-- user_interaction: Use when user input is needed, Only complex tasks like creating PowerPoint presentations or gathering research materials require confirming details with users.
-- response_analysis_tool: Analyze conversations and decide next steps, Only complex tasks like creating PowerPoint presentations or gathering research materials require confirming details with users.
+作为规划者，你需要：
+1. 分析用户需求并创建执行计划，可能需要使用多个工具
+2. 确定每个步骤要执行的操作
+3. 判断是否需要用户输入
+4. 根据执行结果决定下一步
+5. 在第一次对话时等待用户交互
 
-Execution rules:
-1. After each execution, analyze results and decide next steps
-2. First, check for the availability of Chroma and UserProfileManager
-. If both are found, invoke UserProfileManager; otherwise, utilize the UserInteraction tool.
-3. If task is complete, return final results
-4. If problems occur, try alternative solutions or request user help
-5. For simple greetings like 'hello', 'hi', or casual phrases, do not invoke any tools or generate detailed responses.
-   Just return a brief polite acknowledgment using natural language.
+PPT创建指南：
+1. 当你收到任何关于创建ppt的信息时：
+   - 首先使用data_analysis_tool收集必要信息并生成ppt大纲
+   - 使用image_search_tool 搜索相关图片
+   - 使用user_interaction_tool 向用户确认
+   - 使用ppt_add_tools创建演示文稿结构大纲
+   - 每个主要部分使用user_interaction_tool 向用户确认
 
-6. Maintain a professional and friendly tone.
-7. If you discover user profile information, save it for future reference.
+2. 对于每个幻灯片：
+   - 使用适当的布局（标题、内容、图片等）
+   - 添加格式化的文本（大小、颜色、对齐）
+   - 需要时包含相关图片
+   - 使用形状作为视觉元素
+   - 保持一致的样式
 
-PPT Creation Guidelines:
-1. When creating a presentation:
-   - First, gather all necessary information using data_analysis_tool
-   - Create an outline of the presentation structure
-   - Confirm the outline with the user using user_interaction_tool
-   - Create slides one by one using ppt_tool
-   - After each major section, confirm with the user
 
-2. For each slide:
-   - Use appropriate layouts (title, content, image, etc.)
-   - Add text with proper formatting (size, color, alignment)
-   - Include relevant images when needed
-   - Use shapes for visual elements
-   - Maintain consistent styling
+4. 最佳实践：
+   - 保持幻灯片整洁
+   - 使用一致的字体和颜色
+   - 包含相关图片和图形
+   - 保持适当的间距和对齐
+   - 经常保存工作
+   - 在关键点获取用户反馈
+可用工具：
+- ppt_add_tool: 用于创建和添加PPT元素（新建幻灯片、文本、图片等）
+- ppt_remove_tool: 用于删除PPT元素（删除幻灯片、文本、图片等）
+- ppt_update_tool: 用于更新PPT元素（修改文本、图片、背景等）
+- data_analysis_tool: 用于数据分析和可视化
+- chat_tool: 用于日常对话（默认工具）
+- user_interaction: 需要用户输入时使用
+- response_analysis_tool: 分析对话并决定下一步
+- image_search_tool: 用于搜索图片
 
-3. PPT Creation Process:
-   a. Initial Planning:
-      - Analyze user requirements
-      - Research topic using data_analysis_tool
-      - Create presentation outline
-      - Get user confirmation
+执行规则：
+1. 每次执行后，分析结果并决定下一步
+2. 首先检查Chroma和UserProfileManager的可用性
+3. 如果任务完成，返回最终结果
+4. 如果出现问题，尝试替代解决方案或请求用户帮助
+5. 对于简单的问候，直接返回简短回应
+6. 保持专业友好的语气
+7. 如果发现用户信息，保存以供将来参考
 
-   b. Content Creation:
-      - Create title slide
-      - Add content slides
-      - Insert images and shapes
-      - Format text and elements
-      - Save progress regularly
 
-   c. Review and Refinement:
-      - Show progress to user
-      - Get feedback
-      - Make necessary adjustments
-      - Finalize presentation
 
-4. Best Practices:
-   - Keep slides clean and uncluttered
-   - Use consistent fonts and colors
-   - Include relevant images and graphics
-   - Maintain proper spacing and alignment
-   - Save work frequently
-   - Get user feedback at key points
+工具优先级：
+1. ChatTool()
+2. UserInteractionTool()
+3. ResponseAnalysisTool()
+4. DataAnalysisTool()
+5. PPTAddTool()
+6. PPTRemoveTool()
+7. PPTUpdateTool()
+8. ImageSearchTool()
 
-Priorities:
-1. UserInteractionTool()
-2. ResponseAnalysisTool()
-3. DataAnalysisTool()
-4. PPTTool()
-Note: Numbers represent priority levels (1 = highest, 5 = lowest).
-"""
+注意：数字代表优先级（1 = 最高，8 = 最低）。"""
     
     agent = initialize_agent(
         tools,
         INTENT_MODEL,
         agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
         verbose=True,
-        system_message=system_message
+        system_message=systemMessage,
+        memory=conversation_memory
     )
+    logger.info("初始化规划代理完成")
     
-    print("Welcome to the J-A-R-V-I-S intelligent assistant! Type 'exit' to end the conversation.")
-    
-    # Initial greeting
-    initial_response = await agent.ainvoke("Greet the user and ask what you can help them with today.Then wait the user's interaction.")
-    print(f"J-A-R-V-I-S: {initial_response['output']}")
+    print("欢迎使用J-A-R-V-I-S智能助手！输入'退出'结束对话。")
     
     # Get initial user input
-    user_input = await tools[3]._arun("How can I help you today?")
+    logger.info("等待用户初始输入")
+    userInput = await tools[4]._arun("今天我能帮您做什么？")
     
     while True:
-        if user_input.lower() in ['exit', 'quit', 'bye']:
-            print("J-A-R-V-I-S: Thank you for using the intelligent assistant, goodbye!")
+        if userInput.lower() in ['退出', 'quit', 'bye']:
+            logger.info("用户请求退出")
+            print("J-A-R-V-I-S: 感谢使用智能助手，再见！")
             break
         
-        # Retrieve relevant historical information
-        relevant_memories = vector_store.search(user_input, k=3)
-        memory_context = "\n".join([doc.page_content for doc in relevant_memories]) if relevant_memories else ""
-        
-        # todo: 判断用户画像改为一个tool
-        # Check user profile information
-        if await user_profile_manager.is_user_profile_info(user_input):
-            success = await user_profile_manager.save_user_profile(user_input)
+        # 首先检查用户输入是否包含个人信息
+        logger.info("检查用户输入是否包含个人信息")
+        if await userProfileManager.is_user_profile_info(userInput):
+            success = await userProfileManager.save_user_profile(userInput)
             if success:
-                print("------------User profile information saved---------------")
+                logger.info("成功保存用户配置文件信息")
+                print("------------用户信息已保存---------------")
+                userInput = await tools[4]._arun("信息已保存。您还需要其他帮助吗？")
+                continue
+        
+        # 检查长期记忆系统中是否有相关信息
+        logger.info(f"搜索相关长期记忆，用户输入: {userInput}")
+        relevantMemories = await memory_manager.get_relevant_memories(userInput)
+        memoryContext = "\n".join([doc.page_content for doc in relevantMemories]) if relevantMemories else ""
+        logger.info(f"找到 {len(relevantMemories)} 条相关长期记忆")
         
         try:
-            # Build input with historical context
-            enhanced_input = f"{memory_context}\n\nCurrent user input: {user_input}" if memory_context else user_input
+            # 构建增强的输入
+            context = []
+            if memoryContext:
+                context.append(f"历史信息：{memoryContext}")
+            if chat_history := conversation_memory.chat_memory.messages:
+                context.append(f"对话历史：{chat_history[-1].content}")
             
-            # Let AI plan and execute tasks
-            response = await agent.ainvoke(enhanced_input)
-            #调试查看最终的input
-            print(f"*******最终的input：*********{enhanced_input}")
+            enhancedInput = f"{' | '.join(context)} | 当前输入：{userInput}" if context else userInput
+            logger.info(f"增强的输入内容: {enhancedInput}")
+            
+            # 使用agent处理请求
+            response = await agent.ainvoke(enhancedInput)
+            logger.info(f"代理响应: {response['output']}")
             print(f"J-A-R-V-I-S: {response['output']}")
             
-            # Save conversation to vector database
-            conversation = f"User: {user_input}\nAssistant: {response['output']}"
-            vector_store.add_document(conversation)
+            # 保存到长期记忆（如果包含重要信息）
+            if memoryContext or len(userInput) > 50:  # 只保存有上下文或较长的对话
+                await memory_manager.add_to_memory(f"用户: {userInput}\n助手: {response['output']}")
             
-            # Analyze response and decide next steps
-            analysis_input = json.dumps({
+            # 分析响应并决定下一步
+            analysisInput = json.dumps({
                 "response": response['output'],
-                "user_input": user_input
+                "user_input": userInput
             })
-            analysis_result = await tools[4]._arun(analysis_input)
-            analysis = json.loads(analysis_result)
             
-            if analysis["needs_continuation"]:
-                # Continue execution without user input
-                continue
-            elif analysis["needs_user_input"]:
-                # Need user input
-                user_input = await tools[3]._arun(analysis["next_prompt"])
-            else:
-                # Task complete, wait for new user input
-                user_input = await tools[3]._arun("This task has been completed. Is there anything else I can help you with?")
+            try:
+                analysisResult = await tools[5]._arun(analysisInput)
+                analysis = json.loads(analysisResult)
+                logger.info(f"分析结果: {analysis}")
                 
+                if analysis.get("needs_continuation", False):
+                    logger.info("需要继续执行")
+                    continue
+                elif analysis.get("needs_user_input", False):
+                    logger.info(f"需要用户输入，提示: {analysis.get('next_prompt', '')}")
+                    userInput = await tools[4]._arun(analysis.get("next_prompt", "请提供更多信息："))
+                else:
+                    logger.info("任务完成，等待新的用户输入")
+                    userInput = await tools[4]._arun("任务已完成。您还需要其他帮助吗？")
+            except Exception as e:
+                logger.error(f"分析响应时发生错误: {str(e)}")
+                userInput = await tools[4]._arun("抱歉，处理过程中遇到一些问题。请重新描述您的需求：")
         except Exception as e:
-            print(f"Error: {str(e)}")
-            print("J-A-R-V-I-S: Sorry, I encountered some problems. Could you please describe your needs again?")
-            user_input = await tools[3]._arun("Please describe your needs again:")
+            logger.error(f"执行过程中发生错误: {str(e)}")
+            userInput = await tools[4]._arun("抱歉，处理过程中遇到一些问题。请重新描述您的需求：")
 
 if __name__ == "__main__":
     asyncio.run(main()) 

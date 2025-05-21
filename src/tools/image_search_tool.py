@@ -1,0 +1,115 @@
+from langchain.tools import BaseTool
+from tavily import TavilyClient
+import os
+import requests
+from src.utils.logger import get_logger
+from dotenv import load_dotenv
+from pydantic import Field
+import json
+
+# 加载环境变量
+load_dotenv()
+
+# Get logger
+logger = get_logger('image_search')
+
+class ImageSearchTool(BaseTool):
+    """图片搜索工具"""
+    name: str = "image_search_tool"
+    description: str = "搜索图片并保存到本地。输入应该是搜索关键词。"
+    client: TavilyClient = Field(
+        default_factory=lambda: TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+    )
+    img_dir: str = Field(
+        default_factory=lambda: os.path.join(os.getcwd(), "img")
+    )
+    counter_file: str = Field(
+        default_factory=lambda: os.path.join(os.getcwd(), "img", "counter.json")
+    )
+    _counter: int = 0
+    _ppts_dir: str = "ppts"
+    
+    def __init__(self, **data):
+        super().__init__(**data)
+        # 确保img目录存在
+        if not os.path.exists(self.img_dir):
+            os.makedirs(self.img_dir)
+        # 初始化或加载计数器
+        self._init_counter()
+    
+    def _init_counter(self):
+        """初始化或加载计数器"""
+        try:
+            if os.path.exists(self.counter_file):
+                with open(self.counter_file, 'r') as f:
+                    self._counter = json.load(f).get('counter', 0)
+            else:
+                os.makedirs(os.path.dirname(self.counter_file), exist_ok=True)
+                self._save_counter()
+        except Exception as e:
+            logger.error(f"初始化计数器失败: {str(e)}")
+            self._counter = 0
+    
+    def _save_counter(self):
+        """保存计数器"""
+        try:
+            with open(self.counter_file, 'w') as f:
+                json.dump({'counter': self._counter}, f)
+        except Exception as e:
+            logger.error(f"保存计数器失败: {str(e)}")
+    
+    def _get_next_filename(self) -> str:
+        """获取下一个文件名"""
+        self._counter += 1
+        self._save_counter()
+        return f"image_{self._counter}.jpg"
+    
+    def _run(self, query: str) -> str:
+        """同步执行图片搜索"""
+        try:
+            # 使用Tavily搜索图片
+            search_result = self.client.search(
+                query=query,
+                search_depth="advanced",
+                include_images=True,
+                max_results=3
+            )
+            
+            # 获取图片URL
+            image_urls = []
+            if 'images' in search_result:
+                image_urls = search_result['images'][:3]  # 只取前3张图片
+            
+            if not image_urls:
+                return "未找到相关图片"
+            
+            # 下载并保存图片
+            saved_images = []
+            for url in image_urls:
+                try:
+                    response = requests.get(url, timeout=10)
+                    if response.status_code == 200:
+                        # 生成文件名
+                        file_name = self._get_next_filename()
+                        file_path = os.path.join(self.img_dir, file_name)
+                        
+                        # 保存图片
+                        with open(file_path, 'wb') as f:
+                            f.write(response.content)
+                        saved_images.append(file_name)
+                        logger.info(f"成功保存图片: {file_name}")
+                except Exception as e:
+                    logger.error(f"下载图片时发生错误: {str(e)}")
+            
+            if saved_images:
+                return f"成功保存了 {len(saved_images)} 张图片到 img 目录: {', '.join(saved_images)}"
+            else:
+                return "图片下载失败"
+                
+        except Exception as e:
+            logger.error(f"搜索图片时发生错误: {str(e)}")
+            return f"搜索图片时发生错误: {str(e)}"
+    
+    async def _arun(self, query: str) -> str:
+        """异步执行图片搜索"""
+        return self._run(query) 
