@@ -29,7 +29,7 @@ Please return the analysis result in JSON format as follows:
     "next_prompt": "Next prompt"       // If user input is needed, provide appropriate prompt
 
     notice:Only complex tasks like creating PowerPoint presentations or gathering research materials require confirming details with users.
-      For everyday conversations, there is no need to prompt users for input.
+      If it's just a simple greeting like "hello" or "hi", there's no need to call any tools.
 }"""
             
             messages = [
@@ -57,7 +57,7 @@ Please return the analysis result in JSON format as follows:
             response = data.get("response", "")
             user_input = data.get("user_input", "")
             
-            system_prompt = """You are a conversation analysis expert. Analyze the AI's response and user input to determine the next action.
+            system_prompt = """You are a conversation analysis expert. If it's just a simple greeting like "hello" or "hi", there's no need to call any tools.Analyze the AI's response and user input to determine the next action.
 Please return the analysis result in JSON format as follows:
 {
     "needs_continuation": true/false,  // Whether execution needs to continue
@@ -66,8 +66,8 @@ Please return the analysis result in JSON format as follows:
     "next_prompt": "Next prompt"       // If user input is needed, provide appropriate prompt
 
     Notice：
-    Only complex tasks like creating PowerPoint presentations or gathering research materials require confirming details
-      with users. For everyday conversations, there is no need to prompt users for input.
+    notice:Only complex tasks like creating PowerPoint presentations or gathering research materials require confirming details with users.
+     If it's just a simple greeting like "hello" or "hi", there's no need to call any tools.
 }"""
             
             messages = [
