@@ -1,11 +1,11 @@
 from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain.schema import Document
-from src.config.config import VECTOR_DB_CONFIG, OPENAI_API_KEY
-from src.utils.logger import get_logger
+from src.JarvisChain.config.config import VECTOR_DB_CONFIG, OPENAI_API_KEY
+from src.JarvisChain.utils.logger import get_logger
 from langchain.schema import SystemMessage, HumanMessage
 from langchain.llms import OpenAI
-from src.models.llm_models import DECISION_MODEL
+from src.JarvisChain.models.llm_models import DECISION_MODEL
 
 # Get logger
 logger = get_logger('user_profile')
@@ -37,31 +37,31 @@ class UserProfileManager:
             raise
     
     async def is_user_profile_info(self, text: str) -> bool:
-        """使用大模型判断文本是否包含用户信息"""
+        """Use large model to determine if text contains user information"""
         try:
-            system_prompt = """你是一个用户信息分析专家。你的任务是判断给定的文本是否包含用户个人信息。
-请仔细分析文本，判断是否包含以下类型的信息：
-1. 基本信息：姓名、年龄、性别、职业等
-2. 个人特征：身高、体重、外貌特征等
-3. 联系方式：电话、邮箱、地址等
-4. 个人偏好：兴趣爱好、生活习惯、饮食偏好等
-5. 其他个人信息
+            system_prompt = """You are a user information analysis expert. Your task is to determine if the given text contains user personal information.
+Please carefully analyze the text to determine if it contains the following types of information:
+1. Basic information: name, age, gender, occupation, etc.
+2. Personal characteristics: height, weight, appearance, etc.
+3. Contact information: phone, email, address, etc.
+4. Personal preferences: hobbies, habits, dietary preferences, etc.
+5. Other personal information
 
-请只返回 "true" 或 "false"，不要包含其他任何文字。
-- 如果文本包含任何上述类型的个人信息，返回 "true"
-- 如果文本不包含任何个人信息，返回 "false"
-- 如果文本只是普通的问候或对话，返回 "false"
-- 如果文本包含个人信息但同时也包含其他内容，返回 "true"
+Please only return "true" or "false", do not include any other text.
+- If the text contains any of the above types of personal information, return "true"
+- If the text does not contain any personal information, return "false"
+- If the text is just a general greeting or conversation, return "false"
+- If the text contains personal information but also other content, return "true"
 
-示例：
-输入："我叫张三，今年25岁"
-输出："true"
+Example:
+Input: "My name is Zhang San, I am 25 years old"
+Output: "true"
 
-输入："你好，今天天气真好"
-输出："false"
+Input: "Hello, the weather is nice today"
+Output: "false"
 
-输入："我喜欢看电影，特别是科幻片"
-输出："true"
+Input: "I like watching movies, especially sci-fi"
+Output: "true"
 """
 
             messages = [
@@ -70,12 +70,12 @@ class UserProfileManager:
             ]
             
             result = DECISION_MODEL.invoke(messages)
-            # 确保返回的是布尔值
+            # Ensure the return is a boolean
             return result.content.strip().lower() == "true"
             
         except Exception as e:
-            logger.error(f"判断用户信息时发生错误: {str(e)}")
-            # 发生错误时返回False，避免误判
+            logger.error(f"Error determining user information: {str(e)}")
+            # Return False on error to avoid misjudgment
             return False
     
     async def save_user_profile(self, profile_info: str) -> bool:

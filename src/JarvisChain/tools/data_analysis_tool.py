@@ -1,7 +1,7 @@
 from langchain.tools import BaseTool
 from langchain.tools.tavily_search import TavilySearchResults
 import os
-from src.utils.logger import get_logger
+from src.JarvisChain.utils.logger import get_logger
 from dotenv import load_dotenv
 from pydantic import Field
 

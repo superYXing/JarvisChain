@@ -1,8 +1,8 @@
 from langchain.tools import BaseTool
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
-from src.models.llm_models import DECISION_MODEL
-from src.utils.logger import get_logger
+from src.JarvisChain.models.llm_models import DECISION_MODEL
+from src.JarvisChain.utils.logger import get_logger
 
 # Get logger
 logger = get_logger('decision')

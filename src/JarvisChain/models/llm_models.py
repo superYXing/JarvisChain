@@ -1,5 +1,5 @@
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from src.config.config import MODEL_CONFIG, OPENAI_API_KEY, VECTOR_DB_CONFIG
+from src.JarvisChain.config.config import MODEL_CONFIG, OPENAI_API_KEY, VECTOR_DB_CONFIG
 
 
 # Initialize all LLM models

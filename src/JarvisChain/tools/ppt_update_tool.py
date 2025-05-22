@@ -1,7 +1,7 @@
 from langchain.tools import BaseTool
 from pydantic import BaseModel, Field
 import json
-from src.utils.logger import get_logger
+from src.JarvisChain.utils.logger import get_logger
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN

@@ -2,7 +2,7 @@ from langchain.tools import BaseTool
 from pydantic import Field
 import asyncio
 from typing import Optional
-from src.utils.logger import get_logger
+from src.JarvisChain.utils.logger import get_logger
 
 # Get logger
 logger = get_logger('user_interaction')

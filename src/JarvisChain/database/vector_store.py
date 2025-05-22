@@ -1,8 +1,8 @@
 from langchain_chroma import Chroma
 from langchain.schema import Document
 import uuid
-from src.models.llm_models import embedding_model
-from src.config.config import VECTOR_DB_CONFIG
+from src.JarvisChain.models.llm_models import embedding_model
+from src.JarvisChain.config.config import VECTOR_DB_CONFIG
 
 class VectorStore:
     def __init__(self):

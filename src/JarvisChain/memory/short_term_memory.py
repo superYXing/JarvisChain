@@ -1,6 +1,6 @@
 from typing import List, Dict
 from langchain.schema import AIMessage, HumanMessage
-from src.config.config import MEMORY_CONFIG
+from src.JarvisChain.config.config import MEMORY_CONFIG
 
 class ShortTermMemory:
     def __init__(self, max_history: int = MEMORY_CONFIG["max_history"]):

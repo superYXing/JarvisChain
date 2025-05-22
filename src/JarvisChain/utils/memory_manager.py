@@ -1,69 +1,69 @@
 from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain.schema import Document
-from src.config.config import VECTOR_DB_CONFIG, OPENAI_API_KEY
-from src.utils.logger import get_logger
+from src.JarvisChain.config.config import VECTOR_DB_CONFIG, OPENAI_API_KEY
+from src.JarvisChain.utils.logger import get_logger
 
 # Get logger
 logger = get_logger('memory')
 
 class MemoryManager:
-    """长期知识存储管理器"""
+    """Long-term knowledge storage manager"""
     def __init__(self):
         self._init_vector_db()
     
     def _init_vector_db(self):
-        """初始化向量数据库"""
+        """Initialize vector database"""
         try:
-            # 初始化嵌入模型
+            # Initialize embedding model
             self.embedding_model = OpenAIEmbeddings(
                 model=VECTOR_DB_CONFIG["embedding_model"],
                 openai_api_key=OPENAI_API_KEY
             )
             
-            # 获取或创建向量数据库
+            # Get or create vector database
             self.vector_db = Chroma(
                 collection_name=VECTOR_DB_CONFIG["collection_name"],
                 embedding_function=self.embedding_model,
                 persist_directory=VECTOR_DB_CONFIG["persist_directory"]
             )
-            logger.info("向量数据库初始化成功")
+            logger.info("Vector database initialized successfully")
         except Exception as e:
-            logger.error(f"初始化向量数据库时发生错误: {str(e)}")
+            logger.error(f"Error initializing vector database: {str(e)}")
             raise
     
     async def add_to_memory(self, text: str) -> bool:
-        """添加信息到长期记忆"""
+        """Add information to long-term memory"""
         try:
-            # 保存到向量数据库
+            # Save to vector database
             doc = Document(page_content=text)
             self.vector_db.add_documents([doc])
             self.vector_db.persist()
             
-            logger.info("信息已成功保存到长期记忆")
+            logger.info("Information successfully saved to long-term memory")
             return True
         except Exception as e:
-            logger.error(f"保存到长期记忆时发生错误: {str(e)}")
+            logger.error(f"Error saving to long-term memory: {str(e)}")
             return False
     
     async def get_relevant_memories(self, query: str, k: int = 3) -> list:
-        """搜索相关的长期记忆"""
+        """Search relevant long-term memories"""
         try:
-            # 从向量数据库搜索
+            # Search from vector database
             results = self.vector_db.similarity_search(query, k=k)
             return results
         except Exception as e:
-            logger.error(f"搜索长期记忆时发生错误: {str(e)}")
+            logger.error(f"Error searching long-term memories: {str(e)}")
             return []
     
     async def get_all_memories(self) -> list:
-        """获取所有长期记忆"""
+        """Get all long-term memories"""
         try:
-            # 从向量数据库获取所有文档
+            # Get all documents from vector database
             results = self.vector_db.get()
             if results and 'documents' in results:
                 return [doc.page_content for doc in results['documents']]
             return []
         except Exception as e:
-            logger.error(f"获取所有长期记忆时发生错误: {str(e)}")
+            logger.error(f"Error getting all long-term memories: {str(e)}")
             return [] 
