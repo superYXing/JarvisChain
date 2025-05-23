@@ -24,15 +24,15 @@ MODEL_CONFIG = {
         "temperature": 0.2
     },
     "analysis": {
-        "model_name": "gpt-3.5-turbo",
+        "model_name": "gpt-4o-mini",
         "temperature": 0.2
     },
     "summary": {
-        "model_name": "gpt-3.5-turbo",
+        "model_name": "gpt-4o-mini",
         "temperature": 0.2
     },
     "decision": {
-        "model_name": "gpt-3.5-turbo",
+        "model_name": "gpt-4o-mini",
         "temperature": 0.2
     }
 }
