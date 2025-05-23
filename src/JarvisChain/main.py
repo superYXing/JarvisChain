@@ -30,15 +30,16 @@ async def main():
     # 初始化工具
     tools = [
         PPTCreateTool(),
-        PPTSaveTool(),
+        # PPTSaveTool(),
+        ImageSearchTool(),
         PPTAddSlideTool(),
         PPTAddTextTool(),
         PPTAddImageTool(),
         PPTSetBackgroundTool(),
         DataAnalysisTool(),
         UserInteractionTool(),
-        ResponseAnalysisTool(),
-        ImageSearchTool()
+        ResponseAnalysisTool()
+        
     ]
     logger.info("工具初始化完成")
     
@@ -91,13 +92,13 @@ async def main():
     3. 主动询问用户是否需要进一步的修改或优化
     4. 如果遇到问题，提供详细的错误信息和可能的解决方案
     5. 使用中文与用户交互，保持专业友好的语气
-    6.ppt幻灯片索引从0开始，表示第一张。
+    6.The slide index should start from 0 for the first slide.。
     """
     
     agent = initialize_agent(
         tools,
         INTENT_MODEL,
-        agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,
+        agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
         verbose=True,
         system_message=system_message,
         memory=conversation_memory,

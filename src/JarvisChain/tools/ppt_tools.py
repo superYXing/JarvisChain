@@ -53,8 +53,9 @@ class PPTCreateTool(BasePPTTool):
     """创建新的PPT文件"""
     name: str = "ppt_create_tool"
     description: str = (
-    "创建一个新的PPT文件。输入为JSON字符串，字段："
-    "'filename'（可选，PPT文件名，自动添加时间戳）。"
+    "创建一个新的PPT文件。输入为JSON格式。，字段："
+    "'filename'（可选，PPT文件名）。"
+    "注意：'filename' 不能包含文件扩展名。"
 )
 
     def _run(self, input_data: str) -> str:
@@ -82,40 +83,6 @@ class PPTCreateTool(BasePPTTool):
     async def _arun(self, input_data: str) -> str:
         return self._run(input_data)
 
-class PPTSaveTool(BasePPTTool):
-    """保存PPT文件"""
-    name: str = "ppt_save_tool"
-    description: str = (
-    "保存PPT文件。输入为JSON字符串，字段："
-    "'filename'（必填，PPT文件名）。"
-    "工具会根据该文件名重新加载演示文稿并保存。"
-)
-
-    def _run(self, input_data: str) -> str:
-        try:
-            data = json.loads(input_data)
-            filename = data.get("filename")
-            prs = data.get("presentation")
-            
-            if not filename or not prs:
-                raise ValueError("需要提供文件名和演示文稿对象")
-            
-            filepath = os.path.join(self.ppts_dir, filename)
-            prs.save(filepath)
-            
-            return json.dumps({
-                "success": True,
-                "filepath": filepath
-            })
-        except Exception as e:
-            logger.error(f"保存PPT文件失败: {str(e)}")
-            return json.dumps({
-                "success": False,
-                "message": str(e)
-            })
-
-    async def _arun(self, input_data: str) -> str:
-        return self._run(input_data)
 
 class PPTAddSlideTool(BasePPTTool):
     """添加新的幻灯片"""
@@ -124,12 +91,14 @@ class PPTAddSlideTool(BasePPTTool):
     "向指定PPT添加一页新的幻灯片。输入为JSON格式，不要有多余内容。字段："
     "'filename'（PPT文件名）、"
     "'layout'（可选，幻灯片布局名称，默认：标题和内容）。"
+    "注意：'filename' 不能包含文件扩展名。"
 )
 
     def _run(self, input_data: str) -> str:
         try:
             data = json.loads(input_data)
             filename = data.get("filename")
+            filename = filename + ".pptx"
             layout_name = data.get("layout", "标题和内容")
             
             filepath = os.path.join(self.ppts_dir, filename)
@@ -158,13 +127,15 @@ class PPTAddTextTool(BasePPTTool):
     """添加文本到幻灯片"""
     name: str = "ppt_add_text_tool"
     description: str = (
-    "向指定幻灯片添加文本框。输入为JSON字符串，字段："
+    "向指定幻灯片添加文本框。输入为JSON格式。字段："
     "'filename'（PPT文件名）、"
-    "'slide_index'（幻灯片编号，从1开始）、"
+    "'slide_index'（幻灯片编号，从0开始）"
     "'text'（要插入的文本内容，支持换行和项目符号）、"
     "'position'（可选，字典：left, top, width, height，单位：英寸）、"
     "'style'（可选，字体样式，包括 font、size、color、align）。"
-    "注意添加slide的位置不能超过现有的slide数量，索引从0开始计数，表示第一张。"
+    "The slide index should start from 0 for the first slide."
+     "注意：'color' 必须是长度为3的数组，如 [0, 0, 0] 表示黑色。"
+     "注意：'filename' 不能包含文件扩展名。"
     
 )
 
@@ -172,6 +143,8 @@ class PPTAddTextTool(BasePPTTool):
         try:
             data = json.loads(input_data)
             filename = data.get("filename")
+            filename = filename + ".pptx"
+
             slide_index = data.get("slide_index", -1)
             text = data.get("text", "")
             position = data.get("position", {})
@@ -242,19 +215,22 @@ class PPTAddImageTool(BasePPTTool):
     """添加图片到幻灯片"""
     name: str = "ppt_add_image_tool"
     description: str = (
-    "向指定幻灯片添加图片。输入为JSON字符串，字段："
+    "向指定幻灯片添加图片。输入为JSON格式。字段："
     "'filename'（PPT文件名）、"
     "'slide_index'（幻灯片编号，从1开始）、"
     "'image_path'（图片文件路径）、"
     "'position'（可选，字典：left, top, width, height，单位：英寸）。"
     "图片文件支持放置于项目根目录的 img 文件夹内。"
-     "注意添加slide的位置不能超过现有的slide数量，索引从0开始计数，表示第一张。"
+     "The slide index should start from 0 for the first slide."
+     "注意：'filename' 不能包含文件扩展名。"
 )
 
     def _run(self, input_data: str) -> str:
         try:
             data = json.loads(input_data)
             filename = data.get("filename")
+            filename = filename + ".pptx"
+
             slide_index = data.get("slide_index", -1)
             image_path = data.get("image_path")
             position = data.get("position", {})
@@ -306,17 +282,20 @@ class PPTSetBackgroundTool(BasePPTTool):
     """设置幻灯片背景"""
     name: str = "ppt_set_background_tool"
     description: str = (
-    "设置指定幻灯片的背景颜色。输入为JSON字符串，字段："
+    "设置指定幻灯片的背景颜色。输入为JSON格式。字段："
     "'filename'（PPT文件名）、"
     "'slide_index'（幻灯片编号，从1开始）、"
     "'color'（RGB颜色数组，如：[255,255,255] 表示白色）。"
-     "注意添加slide的位置不能超过现有的slide数量，索引从0开始计数，表示第一张。"
+    "The slide index should start from 0 for the first slide."
+    "注意：'filename' 不能包含文件扩展名。"
 )
 
     def _run(self, input_data: str) -> str:
         try:
             data = json.loads(input_data)
             filename = data.get("filename")
+            filename = filename + ".pptx"
+            
             slide_index = data.get("slide_index", -1)
             color = data.get("color", (255, 255, 255))
             
