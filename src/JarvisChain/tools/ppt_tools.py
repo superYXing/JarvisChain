@@ -133,10 +133,9 @@ class PPTAddTextTool(BasePPTTool):
     "'text'（要插入的文本内容，支持换行和项目符号）、"
     "'position'（可选，字典：left, top, width, height，单位：英寸）、"
     "'style'（可选，字体样式，包括 font、size、color、align）。"
-    "The slide index should start from 0 for the first slide."
-     "注意：'color' 必须是长度为3的数组，如 [0, 0, 0] 表示黑色。"
-     "注意：'filename' 不能包含文件扩展名。"
-    
+    "幻灯片索引从0开始计数。"
+    "注意：'color' 必须是长度为3的数组，如 [0, 0, 0] 表示黑色。"
+    "注意：'filename' 不能包含文件扩展名。"
 )
 
     def _run(self, input_data: str) -> str:
@@ -217,12 +216,12 @@ class PPTAddImageTool(BasePPTTool):
     description: str = (
     "向指定幻灯片添加图片。输入为JSON格式。字段："
     "'filename'（PPT文件名）、"
-    "'slide_index'（幻灯片编号，从1开始）、"
+    "'slide_index'（幻灯片编号，从0开始）、"
     "'image_path'（图片文件路径）、"
     "'position'（可选，字典：left, top, width, height，单位：英寸）。"
     "图片文件支持放置于项目根目录的 img 文件夹内。"
-     "The slide index should start from 0 for the first slide."
-     "注意：'filename' 不能包含文件扩展名。"
+    "幻灯片索引从0开始计数。"
+    "注意：'filename' 不能包含文件扩展名。"
 )
 
     def _run(self, input_data: str) -> str:
@@ -248,13 +247,7 @@ class PPTAddImageTool(BasePPTTool):
             
             # 检查图片文件是否存在
             if not os.path.exists(image_path):
-                # 尝试在img目录查找
-                img_dir = os.path.join(os.getcwd(), "img")
-                alternative_path = os.path.join(img_dir, os.path.basename(image_path))
-                if os.path.exists(alternative_path):
-                    image_path = alternative_path
-                else:
-                    raise FileNotFoundError(f"图片文件不存在: {image_path}")
+                raise ValueError(f"图片文件不存在: {image_path}")
             
             left = Inches(position.get('left', 1))
             top = Inches(position.get('top', 1))
@@ -282,11 +275,12 @@ class PPTSetBackgroundTool(BasePPTTool):
     """设置幻灯片背景"""
     name: str = "ppt_set_background_tool"
     description: str = (
-    "设置指定幻灯片的背景颜色。输入为JSON格式。字段："
+    "设置指定幻灯片的背景。输入为JSON格式。字段："
     "'filename'（PPT文件名）、"
-    "'slide_index'（幻灯片编号，从1开始）、"
-    "'color'（RGB颜色数组，如：[255,255,255] 表示白色）。"
-    "The slide index should start from 0 for the first slide."
+    "'slide_index'（幻灯片编号，从0开始）、"
+    "'background_type'（背景类型：'color'或'image'）、"
+    "'value'（颜色值或图片路径）。"
+    "幻灯片索引从0开始计数。"
     "注意：'filename' 不能包含文件扩展名。"
 )
 
@@ -295,9 +289,13 @@ class PPTSetBackgroundTool(BasePPTTool):
             data = json.loads(input_data)
             filename = data.get("filename")
             filename = filename + ".pptx"
-            
+
             slide_index = data.get("slide_index", -1)
-            color = data.get("color", (255, 255, 255))
+            background_type = data.get("background_type")
+            value = data.get("value")
+            
+            if not background_type or not value:
+                raise ValueError("需要提供背景类型和值")
             
             filepath = os.path.join(self.ppts_dir, filename)
             prs = Presentation(filepath)
@@ -307,9 +305,18 @@ class PPTSetBackgroundTool(BasePPTTool):
             
             slide = prs.slides[slide_index]
             background = slide.background
-            fill = background.fill
-            fill.solid()
-            fill.fore_color.rgb = RGBColor(*color)
+            
+            if background_type == "color":
+                r, g, b = value
+                background.fill.solid()
+                background.fill.fore_color.rgb = RGBColor(r, g, b)
+            elif background_type == "image":
+                if not os.path.exists(value):
+                    raise ValueError(f"背景图片不存在: {value}")
+                background.fill.picture()
+                background.fill.picture.insert(value)
+            else:
+                raise ValueError("不支持的背景类型")
             
             prs.save(filepath)
             

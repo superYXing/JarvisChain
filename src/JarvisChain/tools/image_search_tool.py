@@ -10,7 +10,7 @@ import json
 # 加载环境变量
 load_dotenv()
 
-# Get logger
+# 获取日志记录器
 logger = get_logger('image_search')
 
 class ImageSearchTool(BaseTool):

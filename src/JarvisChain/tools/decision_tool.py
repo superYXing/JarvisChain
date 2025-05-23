@@ -4,144 +4,144 @@ from langchain.chains import LLMChain
 from src.JarvisChain.models.llm_models import DECISION_MODEL
 from src.JarvisChain.utils.logger import get_logger
 
-# Get logger
+# 获取日志记录器
 logger = get_logger('decision')
 
 class DecisionTool(BaseTool):
-    """Tool for determining execution status and next steps"""
+    """用于确定执行状态和下一步操作的工具"""
     name: str = "decision_tool"
-    description: str = """Tool for determining current execution status and deciding next steps.
-    Analyzes current execution results and context to determine if we need to:
-    1. Continue with next step
-    2. Request user input
-    3. Complete the task
-    4. Handle errors
+    description: str = """用于确定当前执行状态并决定下一步操作的工具。
+    分析当前执行结果和上下文，以确定是否需要：
+    1. 继续下一步
+    2. 请求用户输入
+    3. 完成任务
+    4. 处理错误
     
-    Input format:
+    输入格式：
     {
-        "response": "Execution result",
-        "context": "Context information"
+        "response": "执行结果",
+        "context": "上下文信息"
     }
     """
     
     def _run(self, input_str: str) -> dict:
-        """Synchronously determine execution status"""
+        """同步确定执行状态"""
         try:
-            # Parse input
+            # 解析输入
             import json
             input_data = json.loads(input_str)
             response = input_data.get("response", "")
             context = input_data.get("context", "")
             
-            # Build decision prompt
+            # 构建决策提示
             decision_prompt = PromptTemplate(
                 input_variables=["response", "context"],
-                template="""Analyze the following execution result and context to determine next steps.
+                template="""分析以下执行结果和上下文以确定下一步操作。
 
-Context information:
+上下文信息：
 {context}
 
-Execution result:
+执行结果：
 {response}
 
-Please analyze and return a JSON format decision containing the following fields:
+请分析并返回一个包含以下字段的JSON格式决策：
 {
     "action": "CONTINUE|USER_INPUT|COMPLETE|ERROR",
-    "reason": "Decision reason",
-    "next_step": "Specific next step suggestion"
+    "reason": "决策原因",
+    "next_step": "具体的下一步建议"
 }
 
-Where:
-- CONTINUE: Continue with next step
-- USER_INPUT: Need user input
-- COMPLETE: Task complete
-- ERROR: Need to handle error
+其中：
+- CONTINUE: 继续下一步
+- USER_INPUT: 需要用户输入
+- COMPLETE: 任务完成
+- ERROR: 需要处理错误
 
-Return only the JSON format decision, no other output.
+只返回JSON格式的决策，不要包含其他输出。
 """
             )
             
-            # Create decision chain
+            # 创建决策链
             decision_chain = LLMChain(
                 llm=DECISION_MODEL,
                 prompt=decision_prompt
             )
             
-            # Execute decision
+            # 执行决策
             result = decision_chain.run(
                 response=response,
                 context=context
             )
             
-            # Parse JSON result
+            # 解析JSON结果
             decision = json.loads(result)
             return decision
             
         except Exception as e:
-            logger.error(f"Decision failed: {str(e)}")
+            logger.error(f"决策失败: {str(e)}")
             return {
                 "action": "ERROR",
-                "reason": f"Error in decision process: {str(e)}",
-                "next_step": "Request user to re-enter input"
+                "reason": f"决策过程中出错: {str(e)}",
+                "next_step": "请求用户重新输入"
             }
     
     async def _arun(self, input_str: str) -> dict:
-        """Asynchronously determine execution status"""
+        """异步确定执行状态"""
         try:
-            # Parse input
+            # 解析输入
             import json
             input_data = json.loads(input_str)
             response = input_data.get("response", "")
             context = input_data.get("context", "")
             
-            # Build decision prompt
+            # 构建决策提示
             decision_prompt = PromptTemplate(
                 input_variables=["response", "context"],
-                template="""Analyze the following execution result and context to determine next steps.
+                template="""分析以下执行结果和上下文以确定下一步操作。
 
-Context information:
+上下文信息：
 {context}
 
-Execution result:
+执行结果：
 {response}
 
-Please analyze and return a JSON format decision containing the following fields:
+请分析并返回一个包含以下字段的JSON格式决策：
 {
     "action": "CONTINUE|USER_INPUT|COMPLETE|ERROR",
-    "reason": "Decision reason",
-    "next_step": "Specific next step suggestion"
+    "reason": "决策原因",
+    "next_step": "具体的下一步建议"
 }
 
-Where:
-- CONTINUE: Continue with next step
-- USER_INPUT: Need user input
-- COMPLETE: Task complete
-- ERROR: Need to handle error
+其中：
+- CONTINUE: 继续下一步
+- USER_INPUT: 需要用户输入
+- COMPLETE: 任务完成
+- ERROR: 需要处理错误
 
-Return only the JSON format decision, no other output.
+只返回JSON格式的决策，不要包含其他输出。
 """
             )
             
-            # Create decision chain
+            # 创建决策链
             decision_chain = LLMChain(
                 llm=DECISION_MODEL,
                 prompt=decision_prompt
             )
             
-            # Execute decision
+            # 执行决策
             result = await decision_chain.arun(
                 response=response,
                 context=context
             )
             
-            # Parse JSON result
+            # 解析JSON结果
             decision = json.loads(result)
             return decision
             
         except Exception as e:
-            logger.error(f"Decision failed: {str(e)}")
+            logger.error(f"决策失败: {str(e)}")
             return {
                 "action": "ERROR",
-                "reason": f"Error in decision process: {str(e)}",
-                "next_step": "Request user to re-enter input"
+                "reason": f"决策过程中出错: {str(e)}",
+                "next_step": "请求用户重新输入"
             } 

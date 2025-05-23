@@ -5,7 +5,7 @@ from src.JarvisChain.utils.logger import get_logger
 from src.JarvisChain.models.llm_models import INTENT_MODEL
 from langchain.schema import SystemMessage, HumanMessage
 
-# Get logger
+# 获取日志记录器
 logger = get_logger('ppt_outline')
 
 class PPTOutlineTool(BaseTool):

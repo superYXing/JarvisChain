@@ -4,32 +4,32 @@ import asyncio
 from typing import Optional
 from src.JarvisChain.utils.logger import get_logger
 
-# Get logger
+# 获取日志记录器
 logger = get_logger('user_interaction')
 
 class UserInteractionTool(BaseTool):
-    """Tool for interacting with users and getting input"""
+    """用于与用户交互并获取输入的工具"""
     name: str = "user_interaction"
-    description: str = """Use this tool when you need to get user input.
-    This tool will prompt the user and return their response.
-    Use cases:
-    1. Need user confirmation for an operation
-    2. Need user to provide more information
-    3. Need user to make a choice
-    4. Need user feedback
+    description: str = """使用此工具来获取用户输入。
+    此工具将提示用户并返回他们的响应。
+    使用场景：
+    1. 需要用户确认某个操作
+    2. 需要用户提供更多信息
+    3. 需要用户做出选择
+    4. 需要用户反馈
     """
-    prompt: Optional[str] = Field(default=None, description="Prompt message to display to the user")
+    prompt: Optional[str] = Field(default=None, description="向用户显示的提示消息")
     
     def _run(self, prompt: Optional[str] = None) -> str:
-        """Synchronously get user input"""
+        """同步获取用户输入"""
         if prompt:
             logger.info(prompt)
-        return input("User: ")
+        return input("用户: ")
     
     async def _arun(self, prompt: Optional[str] = None) -> str:
-        """Asynchronously get user input"""
+        """异步获取用户输入"""
         if prompt:
             logger.info(prompt)
-        # Use asyncio.get_event_loop().run_in_executor to handle input asynchronously
+        # 使用asyncio.get_event_loop().run_in_executor异步处理输入
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, input, "User: ") 
+        return await loop.run_in_executor(None, input, "用户: ") 

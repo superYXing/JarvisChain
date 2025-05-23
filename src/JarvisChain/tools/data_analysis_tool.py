@@ -8,7 +8,7 @@ from pydantic import Field
 # 加载环境变量
 load_dotenv()
 
-# Get logger
+# 获取日志记录器
 logger = get_logger('data_analysis')
 
 class DataAnalysisTool(BaseTool):
