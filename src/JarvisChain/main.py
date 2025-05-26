@@ -83,42 +83,20 @@ async def main():
             logger.info(f"Agent响应: {response}")
             
             if response["success"]:
-                # 处理嵌套的响应结构
-                result = response.get("result", {})
-                if isinstance(result, dict):
-                    if "result" in result and isinstance(result["result"], dict):
-                        output = result["result"].get("output", "")
-                    else:
-                        output = result.get("output", "")
-                else:
-                    output = str(result)
-                print(f"J-A-R-V-I-S: {output}")
-            else:
-                print(f"J-A-R-V-I-S: 抱歉，处理您的请求时遇到了一些问题。请重试。")
-            
-            # 分析响应并决定下一步
-            analysis_input = json.dumps({
-                "response": output if response["success"] else "",
-                "user_input": user_input
-            })
-            
-            try:
-                analysis_result = await response_analysis_tool._arun(analysis_input)
-                analysis = json.loads(analysis_result)
-                
-                if analysis.get("needs_continuation", False):
-                    logger.info("需要继续执行")
-                    continue
-                elif analysis.get("needs_user_input", False):
-                    logger.info(f"需要用户输入，提示: {analysis.get('next_prompt', '')}")
-                    user_input = await user_interaction_tool._arun(analysis.get("next_prompt", "请提供更多信息:"))
-                else:
-                    logger.info("任务完成，等待新的用户输入")
-                    user_input = await user_interaction_tool._arun("任务完成。还需要其他帮助吗？")
+                # 处理不同类型的响应
+                if response.get("type") == "chat":
+                    print(f"J-A-R-V-I-S: {response.get('result')}")
+                    user_input = await user_interaction_tool._arun(response.get("next_prompt", "还需要其他帮助吗？"))
                     
-            except Exception as e:
-                logger.error(f"分析响应时出错: {str(e)}")
-                user_input = await user_interaction_tool._arun("抱歉，处理过程中遇到一些问题。请重新描述您的需求：")
+                elif response.get("type") == "needs_user_input":
+                    print(f"J-A-R-V-I-S: {response.get('result')}")
+                    user_input = await user_interaction_tool._arun(response.get("next_prompt", "请提供更多信息："))           
+                else:
+                    print(f"J-A-R-V-I-S: {response.get('result')}")
+                    user_input = await user_interaction_tool._arun("还需要其他帮助吗？")
+            else:
+                print(f"J-A-R-V-I-S: 抱歉，处理您的请求时遇到了一些问题：{response.get('error')}")
+                user_input = await user_interaction_tool._arun("请重新描述您的需求：")
                 
         except Exception as e:
             logger.error(f"执行过程中发生错误: {str(e)}")
