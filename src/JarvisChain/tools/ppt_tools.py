@@ -35,23 +35,23 @@ class BasePPTTool(BaseTool):
             "仅标题": 5,
             "空白": 6
         }
-        
+
         layouts = {layout.name: layout for layout in prs.slide_layouts}
         layout = layouts.get(layout_name)
-        
+
         if not layout and layout_name in layout_mapping:
             index = layout_mapping[layout_name]
             if 0 <= index < len(prs.slide_layouts):
                 layout = prs.slide_layouts[index]
-        
+
         if not layout:
             layout = prs.slide_layouts[1]
-            
+
         return layout
 
 class PPTCreateTool(BasePPTTool):
     """创建新的PPT文件"""
-    name: str = "ppt_create_tool"
+    name: str = "PPTCreateTool"
     description: str = (
     "创建一个新的PPT文件。输入为JSON格式。，字段："
     "'filename'（可选，PPT文件名）。"
@@ -62,12 +62,15 @@ class PPTCreateTool(BasePPTTool):
         try:
             data = json.loads(input_data)
             filename = data.get("filename")
-            filename = filename + ".pptx"
+            if not filename:
+                filename = self._generate_filename()
+            else:
+                filename = filename + ".pptx"
             filepath = os.path.join(self.ppts_dir, filename)
-            
+
             prs = Presentation()
             prs.save(filepath)
-            
+
             return json.dumps({
                 "success": True,
                 "filename": filename,
@@ -83,12 +86,11 @@ class PPTCreateTool(BasePPTTool):
     async def _arun(self, input_data: str) -> str:
         return self._run(input_data)
 
-
 class PPTAddSlideTool(BasePPTTool):
     """添加新的幻灯片"""
-    name: str = "ppt_add_slide_tool"
+    name: str = "PPTAddSlideTool"
     description: str = (
-    "向指定PPT添加一页新的幻灯片。输入为JSON格式，不要有多余内容。字段："
+    "添加一页幻灯片。输入为JSON格式，不要有多余内容。字段："
     "'filename'（PPT文件名）、"
     "'layout'（可选，幻灯片布局名称，默认：标题和内容）。"
     "注意：'filename' 不能包含文件扩展名。"
@@ -100,15 +102,15 @@ class PPTAddSlideTool(BasePPTTool):
             filename = data.get("filename")
             filename = filename + ".pptx"
             layout_name = data.get("layout", "标题和内容")
-            
+
             filepath = os.path.join(self.ppts_dir, filename)
             prs = Presentation(filepath)
-            
+
             layout = self._get_layout_by_name(prs, layout_name)
             slide = prs.slides.add_slide(layout)
-            
+
             prs.save(filepath)
-            
+
             return json.dumps({
                 "success": True,
                 "slide_index": len(prs.slides) - 1
@@ -125,7 +127,7 @@ class PPTAddSlideTool(BasePPTTool):
 
 class PPTAddTextTool(BasePPTTool):
     """添加文本到幻灯片"""
-    name: str = "ppt_add_text_tool"
+    name: str = "PPTAddTextTool"
     description: str = (
     "向指定幻灯片添加文本框。输入为JSON格式。字段："
     "'filename'（PPT文件名）、"
@@ -148,24 +150,24 @@ class PPTAddTextTool(BasePPTTool):
             text = data.get("text", "")
             position = data.get("position", {})
             style = data.get("style", {})
-            
+
             filepath = os.path.join(self.ppts_dir, filename)
             prs = Presentation(filepath)
-            
+
             if not (0 <= slide_index < len(prs.slides)):
                 raise ValueError("无效的幻灯片索引")
-            
+
             slide = prs.slides[slide_index]
-            
+
             left = Inches(position.get('left', 1))
             top = Inches(position.get('top', 1))
             width = Inches(position.get('width', 8))
             height = Inches(position.get('height', 2))
-            
+
             textbox = slide.shapes.add_textbox(left, top, width, height)
             text_frame = textbox.text_frame
             text_frame.text = ""
-            
+
             lines = text.split('\n')
             first = True
             for line in lines:
@@ -174,7 +176,7 @@ class PPTAddTextTool(BasePPTTool):
                     first = False
                 else:
                     p = text_frame.add_paragraph()
-                
+
                 if line.strip().startswith('-') or line.strip().startswith('•'):
                     p.level = 0
                     p.text = line.strip()[1:].strip()
@@ -183,19 +185,19 @@ class PPTAddTextTool(BasePPTTool):
                     p.text = line.strip()[3:].strip()
                 else:
                     p.text = line
-                
+
                 p.alignment = PP_ALIGN.CENTER if style.get('align') == 'center' else PP_ALIGN.LEFT
-                
+
                 font = p.font
                 font.name = style.get('font', '微软雅黑')
                 font.size = Pt(style.get('size', 18))
-                
+
                 if 'color' in style:
                     r, g, b = style['color']
                     font.color.rgb = RGBColor(r, g, b)
-            
+
             prs.save(filepath)
-            
+
             return json.dumps({
                 "success": True,
                 "shape_index": len(slide.shapes) - 1
@@ -212,7 +214,7 @@ class PPTAddTextTool(BasePPTTool):
 
 class PPTAddImageTool(BasePPTTool):
     """添加图片到幻灯片"""
-    name: str = "ppt_add_image_tool"
+    name: str = "PPTAddImageTool"
     description: str = (
     "向指定幻灯片添加图片。输入为JSON格式。字段："
     "'filename'（PPT文件名）、"
@@ -233,30 +235,29 @@ class PPTAddImageTool(BasePPTTool):
             slide_index = data.get("slide_index", -1)
             image_path = data.get("image_path")
             position = data.get("position", {})
-            
+
             if not image_path:
                 raise ValueError("需要提供图片路径")
-            
+
             filepath = os.path.join(self.ppts_dir, filename)
             prs = Presentation(filepath)
-            
+
             if not (0 <= slide_index < len(prs.slides)):
                 raise ValueError("无效的幻灯片索引")
-            
+
             slide = prs.slides[slide_index]
-            
-            # 检查图片文件是否存在
+
             if not os.path.exists(image_path):
                 raise ValueError(f"图片文件不存在: {image_path}")
-            
+
             left = Inches(position.get('left', 1))
             top = Inches(position.get('top', 1))
             width = Inches(position.get('width', 6))
             height = Inches(position.get('height', 4))
-            
+
             slide.shapes.add_picture(image_path, left, top, width, height)
             prs.save(filepath)
-            
+
             return json.dumps({
                 "success": True,
                 "shape_index": len(slide.shapes) - 1
@@ -273,7 +274,7 @@ class PPTAddImageTool(BasePPTTool):
 
 class PPTSetBackgroundTool(BasePPTTool):
     """设置幻灯片背景"""
-    name: str = "ppt_set_background_tool"
+    name: str = "PPTSetBackgroundTool"
     description: str = (
     "设置指定幻灯片的背景。输入为JSON格式。字段："
     "'filename'（PPT文件名）、"
@@ -293,19 +294,19 @@ class PPTSetBackgroundTool(BasePPTTool):
             slide_index = data.get("slide_index", -1)
             background_type = data.get("background_type")
             value = data.get("value")
-            
+
             if not background_type or not value:
                 raise ValueError("需要提供背景类型和值")
-            
+
             filepath = os.path.join(self.ppts_dir, filename)
             prs = Presentation(filepath)
-            
+
             if not (0 <= slide_index < len(prs.slides)):
                 raise ValueError("无效的幻灯片索引")
-            
+
             slide = prs.slides[slide_index]
             background = slide.background
-            
+
             if background_type == "color":
                 r, g, b = value
                 background.fill.solid()
@@ -317,9 +318,9 @@ class PPTSetBackgroundTool(BasePPTTool):
                 background.fill.picture.insert(value)
             else:
                 raise ValueError("不支持的背景类型")
-            
+
             prs.save(filepath)
-            
+
             return json.dumps({
                 "success": True
             })
@@ -331,4 +332,4 @@ class PPTSetBackgroundTool(BasePPTTool):
             })
 
     async def _arun(self, input_data: str) -> str:
-        return self._run(input_data) 
+        return self._run(input_data)

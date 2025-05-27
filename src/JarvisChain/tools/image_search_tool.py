@@ -11,15 +11,17 @@ import json
 load_dotenv()
 
 # 获取日志记录器
-logger = get_logger('image_search')
+logger = get_logger('image_search_tool')
 
 class ImageSearchTool(BaseTool):
     """图片搜索工具"""
-    name: str = "image_search_tool"
-    description: str = "搜索图片并保存到本地。输入应该是搜索关键词。"
-    client: TavilyClient = Field(
-        default_factory=lambda: TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+    name: str = "ImageSearchTool"
+    description: str = (
+        "搜索图片并保存到本地。输入为JSON格式。字段："
+        "'query'（搜索关键词）、"
+        "'max_results'（可选，最大结果数量，默认：5）。"
     )
+    client: TavilyClient = None
     img_dir: str = Field(
         default_factory=lambda: os.path.join(os.getcwd(), "img")
     )
@@ -31,6 +33,7 @@ class ImageSearchTool(BaseTool):
     
     def __init__(self, **data):
         super().__init__(**data)
+        self.client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
         # 确保img目录存在
         if not os.path.exists(self.img_dir):
             os.makedirs(self.img_dir)
@@ -66,114 +69,91 @@ class ImageSearchTool(BaseTool):
             return f"{prefix}_{self._counter}.jpg"
         return f"image_{self._counter}.jpg"
     
-    def _run(self, query: str) -> str:
-        """同步执行图片搜索"""
+    def _download_image(self, url: str, filename: str) -> bool:
+        """下载图片到本地"""
         try:
-            # 解析查询参数
-            params = self._parse_query(query)
-            search_query = params.get("query", query)
-            max_images = params.get("max_images", 3)
-            image_prefix = params.get("prefix", None)
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
             
-            # 使用Tavily搜索图片
-            search_result = self.client.search(
-                query=search_query,
-                search_depth="advanced",
+            filepath = os.path.join(self.img_dir, filename)
+            with open(filepath, 'wb') as f:
+                f.write(response.content)
+            
+            logger.info(f"成功保存图片: {filename}")
+            return True
+        except Exception as e:
+            logger.error(f"下载图片失败 {url}: {str(e)}")
+            return False
+    
+    def _run(self, input_data: str) -> str:
+        try:
+            # 解析输入参数
+            if isinstance(input_data, str):
+                try:
+                    data = json.loads(input_data)
+                except json.JSONDecodeError:
+                    # 如果不是JSON，尝试解析为简单的查询字符串
+                    data = {"query": input_data.strip()}
+            else:
+                data = input_data
+            
+            query = data.get("query")
+            max_results = data.get("max_results", 5)
+
+            if not query:
+                return json.dumps({
+                    "success": False,
+                    "message": "需要提供搜索关键词"
+                })
+
+            logger.info(f"开始搜索图片: {query}")
+            
+            # 使用Tavily搜索，包含图片
+            search_results = self.client.search(
+                query=query,
+                search_depth="basic",
                 include_images=True,
-                max_results=5  # 获取更多结果，因为并非所有结果都有图片
+                max_results=max_results
             )
             
-            # 获取图片URL
-            image_urls = []
-            if 'images' in search_result:
-                image_urls = search_result['images'][:max_images]  # 限制图片数量
-            
-            if not image_urls:
-                return "未找到相关图片"
+            # 提取图片URL
+            images = search_results.get("images", [])
+            if not images:
+                return json.dumps({
+                    "success": False,
+                    "message": "未找到相关图片"
+                })
             
             # 下载并保存图片
             saved_images = []
-            absolute_paths = []
-            for url in image_urls:
-                try:
-                    response = requests.get(url, timeout=10)
-                    if response.status_code == 200:
-                        # 生成文件名
-                        file_name = self._get_next_filename(image_prefix)
-                        file_path = os.path.join(self.img_dir, file_name)
-                        
-                        # 保存图片
-                        with open(file_path, 'wb') as f:
-                            f.write(response.content)
-                        saved_images.append(file_name)
-                        absolute_paths.append(file_path)
-                        logger.info(f"成功保存图片: {file_name}")
-                except Exception as e:
-                    logger.error(f"下载图片时发生错误: {str(e)}")
+            for i, image_url in enumerate(images[:max_results]):
+                filename = self._get_next_filename()
+                if self._download_image(image_url, filename):
+                    saved_images.append({
+                        "filename": filename,
+                        "path": os.path.join(self.img_dir, filename),
+                        "url": image_url
+                    })
             
-            if saved_images:
-                # 返回带有相对路径和绝对路径的JSON结果
-                result = {
-                    "success": True,
-                    "message": f"成功保存了 {len(saved_images)} 张图片",
-                    "images": [
-                        {
-                            "filename": img, 
-                            "relative_path": f"img/{img}", 
-                            "absolute_path": os.path.join(self.img_dir, img)
-                        }
-                        for img in saved_images
-                    ]
-                }
-                return json.dumps(result, ensure_ascii=False)
-            else:
-                return json.dumps({"success": False, "message": "图片下载失败"})
-                
+            if not saved_images:
+                return json.dumps({
+                    "success": False,
+                    "message": "所有图片下载失败"
+                })
+            
+            return json.dumps({
+                "success": True,
+                "message": f"成功搜索并保存了 {len(saved_images)} 张图片",
+                "images": saved_images,
+                "query": query
+            })
+
         except Exception as e:
-            logger.error(f"搜索图片时发生错误: {str(e)}")
-            import traceback
-            logger.error(traceback.format_exc())
-            return json.dumps({"success": False, "message": f"搜索图片时发生错误: {str(e)}"})
+            logger.error(f"搜索图片失败: {str(e)}")
+            return json.dumps({
+                "success": False,
+                "message": str(e)
+            })
     
-    def _parse_query(self, query: str) -> dict:
-        """解析查询字符串，提取参数"""
-        try:
-            # 尝试将查询解析为JSON
-            if query.strip().startswith("{"):
-                try:
-                    return json.loads(query)
-                except json.JSONDecodeError:
-                    pass
-            
-            # 检查是否包含特殊参数标记
-            params = {"query": query}
-            
-            # 提取max_images参数
-            if "max_images:" in query:
-                parts = query.split("max_images:")
-                if len(parts) > 1:
-                    try:
-                        max_images = int(parts[1].split()[0])
-                        params["max_images"] = max_images
-                        # 移除参数标记
-                        params["query"] = query.replace(f"max_images:{max_images}", "").strip()
-                    except ValueError:
-                        pass
-            
-            # 提取prefix参数
-            if "prefix:" in query:
-                parts = query.split("prefix:")
-                if len(parts) > 1:
-                    prefix = parts[1].split()[0]
-                    params["prefix"] = prefix
-                    # 移除参数标记
-                    params["query"] = query.replace(f"prefix:{prefix}", "").strip()
-            
-            return params
-        except Exception as e:
-            logger.error(f"解析查询时发生错误: {str(e)}")
-            return {"query": query}
-    
-    async def _arun(self, query: str) -> str:
-        """异步执行图片搜索"""
-        return self._run(query) 
+    async def _arun(self, input_data: str) -> str:
+        return self._run(input_data) 

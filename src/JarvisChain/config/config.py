@@ -16,11 +16,11 @@ openai.api_base = OPENAI_API_BASE
 # Model configuration
 MODEL_CONFIG = {
     "user_profile": {
-        "model_name": "gpt-4o",
+        "model_name": "gpt-4o-mini",
         "temperature": 0.2
     },
     "intent": {
-        "model_name": "gpt-4o",
+        "model_name": "gpt-4o-mini",
         "temperature": 0.2
     },
     "analysis": {
