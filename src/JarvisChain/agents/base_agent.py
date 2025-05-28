@@ -12,11 +12,9 @@ class BaseAgent(ABC):
     def __init__(self, name: str, description: str):
         self.name = name
         self.description = description
-        self.memory = ConversationBufferMemory(
-            memory_key="chat_history",
-            return_messages=True
-        )
-        self.agent_executor: AgentExecutor = None
+        # 暂时禁用内存功能以避免弃用警告
+        self.memory = None
+        self.agent_executor = None
         self.logger = get_logger(f'agent_{name}')
     
     @abstractmethod
