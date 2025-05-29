@@ -10,6 +10,7 @@ import traceback
 import tempfile
 import subprocess
 import sys
+import re
 from typing import Dict, Any, Optional, List
 from dotenv import load_dotenv
 from openai import OpenAI  # 使用 OpenAI 兼容接口
@@ -21,7 +22,7 @@ load_dotenv()
 logger = get_logger('ppt_code_generator')
 
 class PPTCodeGenerator:
-    """PPT代码生成器，使用Gemini-2.5-Flash生成和修复python-pptx代码"""
+    """PPT代码生成器，使用gemini-2.5-flash-preview-04-17生成python-pptx代码"""
     
     def __init__(self):
         # 获取 API 密钥，优先使用 YUNWU_API_KEY，兼容 GEMINI_API_KEY
@@ -36,7 +37,7 @@ class PPTCodeGenerator:
         )
         
         # 使用指定的模型
-        self.model_name = "gemini-2.5-flash-preview-05-20"
+        self.model_name = "gemini-2.5-flash-preview-04-17"
         
         # 预置的python-pptx函数库
         self.pptx_functions = self._load_pptx_functions()
@@ -47,135 +48,74 @@ class PPTCodeGenerator:
     def _load_pptx_functions(self) -> str:
         """加载预置的python-pptx函数库"""
         return '''
-# 预置的python-pptx函数库
-import os
-import requests
+# 预置的python-pptx函数库和tavily调用方式
+import os, io, requests
 from typing import Optional
 from PIL import Image
-import io
-
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import PP_ALIGN, MSO_AUTO_SIZE
-from pptx.enum.dml import MSO_THEME_COLOR
+from dotenv import load_dotenv
+from tavily import TavilyClient
 
-def create_presentation(width_inches=16, height_inches=9):
-    """创建新的演示文稿"""
-    prs = Presentation()
-    prs.slide_width = Inches(width_inches)
-    prs.slide_height = Inches(height_inches)
-    return prs
-
-def add_slide(prs, layout_index=5):
-    """添加新幻灯片，默认使用空白布局"""
-    slide_layout = prs.slide_layouts[layout_index]
-    return prs.slides.add_slide(slide_layout)
-
-def set_slide_background_color(slide, rgb_color):
-    """设置幻灯片背景颜色"""
-    background = slide.background
-    fill = background.fill
-    fill.solid()
-    fill.fore_color.rgb = rgb_color
-
-def add_textbox_with_style(slide, text, left, top, width, height, 
-                          font_name="微软雅黑", font_size=24, font_color=RGBColor(0, 0, 0),
-                          bold=False, italic=False, alignment=PP_ALIGN.LEFT):
-    """添加带样式的文本框"""
-    txBox = slide.shapes.add_textbox(left, top, width, height)
-    tf = txBox.text_frame
-    tf.word_wrap = True
-    p = tf.paragraphs[0]
-    p.text = text
-    p.font.name = font_name
-    p.font.size = Pt(font_size)
-    p.font.color.rgb = font_color
-    p.font.bold = bold
-    p.font.italic = italic
-    p.alignment = alignment
-    tf.auto_size = MSO_AUTO_SIZE.NONE
-    return txBox
-
-def add_title_slide(slide, title, subtitle="", title_font_size=48, subtitle_font_size=24):
-    """添加标题幻灯片"""
-    # 标题
-    add_textbox_with_style(
-        slide, title, 
-        Inches(1), Inches(2), Inches(14), Inches(2),
-        font_size=title_font_size, bold=True, alignment=PP_ALIGN.CENTER
-    )
-    
-    # 副标题
-    if subtitle:
-        add_textbox_with_style(
-            slide, subtitle,
-            Inches(1), Inches(4.5), Inches(14), Inches(1),
-            font_size=subtitle_font_size, alignment=PP_ALIGN.CENTER
-        )
-
-def add_content_slide(slide, title, content, title_font_size=36, content_font_size=20):
-    """添加内容幻灯片"""
-    # 标题
-    add_textbox_with_style(
-        slide, title,
-        Inches(0.5), Inches(0.5), Inches(15), Inches(1),
-        font_size=title_font_size, bold=True
-    )
-    
-    # 内容
-    add_textbox_with_style(
-        slide, content,
-        Inches(0.5), Inches(2), Inches(15), Inches(6),
-        font_size=content_font_size
-    )
-
-def create_decorative_line(slide, left, top, width, height, color):
-    """创建装饰线条"""
-    shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, top, width, height)
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = color
-    shape.line.fill.background()
-    return shape
-
-def add_image_to_slide(slide, image_path, left, top, width=None, height=None):
-    """向幻灯片添加图片"""
-    if not image_path or not os.path.exists(image_path):
-        print(f"图片路径无效或文件不存在: {image_path}")
-        return None
-    
-    try:
-        if width and height:
-            return slide.shapes.add_picture(image_path, left, top, width=width, height=height)
-        else:
-            return slide.shapes.add_picture(image_path, left, top)
-    except Exception as e:
-        print(f"添加图片时发生错误: {e}")
-        return None
-
-def save_presentation(prs, filename):
-    """保存演示文稿"""
-    try:
-        # 确保目录存在
-        os.makedirs(os.path.dirname(filename) if os.path.dirname(filename) else ".", exist_ok=True)
-        prs.save(filename)
-        print(f"PPT已保存到: {filename}")
-        return True
-    except Exception as e:
-        print(f"保存PPT时发生错误: {e}")
-        return False
-
-# 常用颜色定义
-COLOR_WHITE = RGBColor(255, 255, 255)
-COLOR_BLACK = RGBColor(0, 0, 0)
-COLOR_BLUE = RGBColor(0, 123, 255)
-COLOR_RED = RGBColor(220, 53, 69)
-COLOR_GREEN = RGBColor(40, 167, 69)
-COLOR_ORANGE = RGBColor(255, 193, 7)
-COLOR_PURPLE = RGBColor(108, 117, 125)
-COLOR_GRAY = RGBColor(108, 117, 125)
+# 环境与常量
+load_dotenv()
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+IMAGE_MAX_RESULTS = 2
+IMAGE_DIR = "ppt_images_cache"
+os.makedirs(IMAGE_DIR, exist_ok=True)
+tavily_client = TavilyClient(api_key=TAVILY_API_KEY) if TAVILY_API_KEY else None
+IMAGE_DIR = "ppt_images_cache"
+PPT_SAVE_DIR = "ppts"
+# 颜色定义
+COLOR_WHITE, COLOR_BLACK = RGBColor(255, 255, 255), RGBColor(0, 0, 0)
+COLOR_BLUE, COLOR_RED = RGBColor(0, 123, 255), RGBColor(220, 53, 69)
+COLOR_GREEN, COLOR_ORANGE = RGBColor(40, 167, 69), RGBColor(255, 193, 7)
+COLOR_PURPLE, COLOR_GRAY = RGBColor(108, 117, 125), RGBColor(108, 117, 125)
 COLOR_LIGHT_GRAY = RGBColor(248, 249, 250)
+
+# 搜索和下载图片
+def search_and_download_image(query: str, filename: str, search_online=True) -> Optional[str]:
+    try:
+        if not search_online or not tavily_client:
+            return None
+        
+        local_path = os.path.join(IMAGE_DIR, filename)
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        results = tavily_client.search(query=query, search_depth="basic", include_images=True, max_results=10)
+        for url in results.get("images", []):
+            try:
+                res = requests.get(url, timeout=20, headers=headers)
+                res.raise_for_status()
+                if 'image' not in res.headers.get('content-type', ''):
+                    continue
+
+                img = Image.open(io.BytesIO(res.content))
+                img.verify()
+                img = Image.open(io.BytesIO(res.content))
+
+                if img.width < 50 or img.height < 50:
+                    continue
+
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    bg = Image.new('RGB', img.size, (255, 255, 255))
+                    if img.mode == 'P':
+                        img = img.convert('RGBA')
+                    bg.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+                    img = bg
+                elif img.mode != 'RGB':
+                    img = img.convert('RGB')
+
+                img.save(local_path, 'JPEG', quality=85)
+                return local_path
+            except:
+                continue
+    except:
+        pass
+    return None
+
 '''
 
     async def generate_ppt_code(self, user_prompt: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -189,14 +129,14 @@ COLOR_LIGHT_GRAY = RGBColor(248, 249, 250)
             full_prompt = self._build_user_prompt(user_prompt, context)
             
             # 调用Gemini生成代码
-            logger.info("🤖 调用Gemini-2.5-Flash生成代码...")
+            logger.info("🤖 调用gemini-2.5-flash生成代码...")
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": full_prompt}
                 ],
-                max_tokens=4000,
+                max_tokens=10000,
                 temperature=0.3
             )
             
@@ -224,112 +164,239 @@ COLOR_LIGHT_GRAY = RGBColor(248, 249, 250)
             logger.error(f"❌ 生成PPT代码时发生错误: {str(e)}")
             return {"success": False, "error": str(e)}
 
-    async def execute_and_fix_code(self, code: str, max_attempts: int = 3) -> Dict[str, Any]:
-        """执行代码并在出错时自动修复"""
-        for attempt in range(max_attempts):
-            logger.info(f"⚙️ 第 {attempt + 1} 次尝试执行代码")
-            
-            # 执行代码
-            result = await self._execute_code_safely(code)
-            
-            if result["success"]:
-                logger.info("🎉 代码执行成功")
-                return result
-            
-            # 如果是最后一次尝试，返回错误
-            if attempt == max_attempts - 1:
-                logger.error(f"❌ 代码执行失败，已达到最大尝试次数: {result['error']}")
-                return result
-            
-            # 尝试修复代码
-            logger.info(f"🔧 代码执行失败，尝试修复: {result['error']}")
-            fix_result = await self._fix_code(code, result["error"])
-            
-            if not fix_result["success"]:
-                logger.error(f"❌ 代码修复失败: {fix_result['error']}")
-                return fix_result
-            
-            code = fix_result["fixed_code"]
-            logger.info(f"✅ 代码修复完成，准备重新执行")
+    async def execute_code(self, code: str) -> Dict[str, Any]:
+        """执行代码"""
+        logger.info("⚙️ 开始执行PPT代码...")
+        #输出代码
+        logger.info(f"执行的代码：\n{code}")
+        # 直接执行代码，不进行重试
+        result = await self._execute_code_safely(code)
+        
+        if result["success"]:
+            logger.info("🎉 代码执行成功")
+        else:
+            logger.error(f"❌ 代码执行失败: {result['error']}")
+            # 记录错误到历史
             self.error_history.append({
-                "attempt": attempt + 1,
                 "error": result["error"],
-                "fix_applied": True
+                "code": code,
+                "timestamp": self._get_timestamp()
             })
         
-        return {"success": False, "error": "达到最大修复尝试次数"}
+        return result
+
+    async def fix_code(self, original_code: str, error_message: str) -> Dict[str, Any]:
+        """根据错误信息修复代码"""
+        return await self._fix_code(original_code, error_message)
 
     def _build_system_prompt(self) -> str:
         """构建系统提示词"""
-        return f"""你是一个专业的PPT代码生成助手，使用python-pptx库生成演示文稿。
+        return f"""你是一个专业的PPT代码生成助手，使用python-pptx库和tavily图片搜索api生成PY代码。
 
 可用的预置函数库：
 {self.pptx_functions}
 
 生成代码时请遵循以下规则：
-1. 使用提供的预置函数，减少重复代码
+1. 参考预置函数库的定义
 2. 生成完整可执行的Python代码
-3. 包含必要的导入语句
-4. 代码应该创建一个完整的PPT文件
-5. 使用中文内容和字体
-6. 确保代码的可读性和维护性
-7. 处理可能的异常情况
-8. 最后保存PPT文件
+3. 不要在代码中包含任何解释或注释（除非必要）
+4. 确保代码可以直接运行，Python版本是3.9
+5. 只输出代码，不要有任何其他内容
 
-代码格式要求：
-- 使用```python开始，```结束
-- 包含完整的main函数
-- 添加适当的注释
-- 使用合理的变量命名
-
-请生成高质量、可执行的PPT代码。"""
+"""
 
     def _build_user_prompt(self, user_prompt: str, context: Dict[str, Any] = None) -> str:
         """构建用户提示词"""
         prompt = f"用户需求：{user_prompt}\n\n"
         
         if context:
-            prompt += f"上下文信息：{json.dumps(context, ensure_ascii=False, indent=2)}\n\n"
-        
-        if self.error_history:
-            prompt += "之前的错误历史：\n"
-            for error in self.error_history[-3:]:  # 只显示最近3个错误
-                prompt += f"- 尝试 {error['attempt']}: {error['error']}\n"
-            prompt += "\n"
+            # 如果有PPT结构信息，添加到提示词中
+            if "ppt_structure" in context:
+                prompt += f"当前PPT结构：\n{context['ppt_structure']}\n\n"
+            
+            # 如果有错误历史，添加最近的错误
+            if "recent_errors" in context:
+                prompt += "最近的错误：\n"
+                for error in context["recent_errors"][-3:]:
+                    prompt += f"- {error}\n"
+                prompt += "\n"
+            
+            # 其他上下文信息
+            other_context = {k: v for k, v in context.items() 
+                           if k not in ["ppt_structure", "recent_errors"]}
+            if other_context:
+                prompt += f"其他上下文信息：{json.dumps(other_context, ensure_ascii=False, indent=2)}\n\n"
         
         prompt += "请生成符合需求的完整PPT代码："
         
         return prompt
 
     def _extract_code_from_response(self, response_text: str) -> Optional[str]:
-        """从响应中提取代码"""
+        """从响应中提取代码，增强think标签处理"""
         try:
-            # 查找代码块
-            if "```python" in response_text:
-                start = response_text.find("```python") + 9
-                end = response_text.find("```", start)
-                if end != -1:
-                    return response_text[start:end].strip()
+            logger.info("🔍 开始提取代码...")
             
-            # 如果没有找到标准格式，尝试其他格式
-            if "```" in response_text:
-                parts = response_text.split("```")
-                for i, part in enumerate(parts):
-                    if "import" in part and "pptx" in part:
-                        return part.strip()
+            # 使用更强大的正则表达式处理think标签
+            code = self._remove_all_think_sections(response_text)
+            # 删除开头的 "```python" 和结尾的 "```"
+            code = code.replace("```python", "").replace("```", "")
+            # 处理markdown代码块
+            code = self._extract_from_markdown(code)
             
-            return None
+           
+           
+            logger.info("✅ 代码提取和验证成功")
+            return code
+           
+            
         except Exception as e:
-            logger.error(f"提取代码时发生错误: {str(e)}")
+            logger.error(f"提取代码失败: {e}")
             return None
+
+    def _remove_all_think_sections(self, text: str) -> str:
+        """更彻底地删除所有think相关内容"""
+        # 删除各种think标签格式
+        patterns = [
+            r'<think>.*?</think>',
+            r'<thinking>.*?</thinking>',
+            r'<thought>.*?</thought>',
+            r'<THINK>.*?</THINK>',
+            r'<Think>.*?</Think>',
+            r'\*\*思考.*?\*\*.*?(?=```|$)',
+            r'##?\s*思考.*?(?=```|$)',
+            r'##?\s*分析.*?(?=```|$)',
+            r'让我.*?思考.*?(?=```|$)',
+            r'让我.*?分析.*?(?=```|$)',
+            r'首先.*?分析.*?(?=```|$)',
+            r'我需要.*?(?=```|$)',
+            r'我将.*?(?=```|$)',
+        ]
+        
+        for pattern in patterns:
+            text = re.sub(pattern, '', text, flags=re.DOTALL | re.IGNORECASE | re.MULTILINE)
+        
+        return text.strip()
+
+    def _extract_from_markdown(self, text: str) -> str:
+        """从markdown代码块中提取代码"""
+        # 匹配```python...```格式
+        match = re.search(r'```python\s*\n(.*?)```', text, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+        
+        # 匹配```...```格式（没有语言标记）
+        match = re.search(r'```\s*\n(.*?)```', text, re.DOTALL)
+        if match:
+            code = match.group(1).strip()
+            # 检查是否是Python代码
+            if "import" in code or "def" in code or "class" in code:
+                return code
+        
+        # 如果没有代码块，返回整个文本（可能整个响应就是代码）
+        return text.strip()
+
+    def _clean_code_thoroughly(self, code: str) -> str:
+        """彻底清理代码内容"""
+        lines = code.split('\n')
+        cleaned_lines = []
+        in_string = False
+        string_char = None
+        
+        for line in lines:
+            # 跳过空行
+            if not line.strip():
+                cleaned_lines.append(line)
+                continue
+            
+            # 检查是否在字符串内
+            for i, char in enumerate(line):
+                if char in ['"', "'"] and (i == 0 or line[i-1] != '\\'):
+                    if not in_string:
+                        in_string = True
+                        string_char = char
+                    elif char == string_char:
+                        in_string = False
+            
+            # 如果不在字符串内，检查是否是无效内容
+            if not in_string:
+                stripped = line.strip().lower()
+                
+                # 跳过think相关内容
+                skip_keywords = [
+                    '<think', '</think', 'thinking', '思考', '分析',
+                    '让我', '首先', '我需要', '我将', '```'
+                ]
+                
+                should_skip = False
+                for keyword in skip_keywords:
+                    if keyword in stripped and not any(stripped.startswith(p) for p in ['#', 'import', 'from', 'def', 'class']):
+                        should_skip = True
+                        break
+                
+                if should_skip:
+                    continue
+            
+            cleaned_lines.append(line)
+        
+        return '\n'.join(cleaned_lines).strip()
+
+    def _validate_extracted_code(self, code: str) -> bool:
+        """验证提取的代码是否有效"""
+        if not code or len(code.strip()) < 10:
+            return False
+        
+        # 检查基本Python结构
+        must_have_any = ["import", "from", "def", "class"]
+        if not any(keyword in code for keyword in must_have_any):
+            logger.warning("代码中缺少基本Python结构")
+            return False
+        
+        # 检查语法
+        try:
+            compile(code, '<string>', 'exec')
+            return True
+        except SyntaxError as e:
+            logger.warning(f"代码语法错误: {e}")
+            # 尝试自动修复常见语法问题
+            fixed_code = self._try_fix_common_syntax_errors(code)
+            if fixed_code != code:
+                try:
+                    compile(fixed_code, '<string>', 'exec')
+                    logger.info("✅ 自动修复了语法错误")
+                    return True
+                except:
+                    pass
+            return False
+        except Exception:
+            # 其他编译错误不影响语法正确性
+            return True
+
+    def _try_fix_common_syntax_errors(self, code: str) -> str:
+        """尝试修复常见的语法错误"""
+        # 修复缩进问题
+        lines = code.split('\n')
+        fixed_lines = []
+        
+        for line in lines:
+            # 修复混合tab和空格的问题
+            line = line.replace('\t', '    ')
+            fixed_lines.append(line)
+        
+        return '\n'.join(fixed_lines)
 
     async def _execute_code_safely(self, code: str) -> Dict[str, Any]:
         """安全执行代码"""
         try:
+            # 确保temp目录存在
+            temp_dir = os.path.join(os.getcwd(), "temp")
+            os.makedirs(temp_dir, exist_ok=True)
+            
             # 创建临时文件
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8', dir=temp_dir) as f:
                 f.write(code)
                 temp_file = f.name
+            
+            logger.info(f"📝 临时代码文件已保存到: {temp_file}")
             
             try:
                 # 执行代码
@@ -337,7 +404,7 @@ COLOR_LIGHT_GRAY = RGBColor(248, 249, 250)
                     [sys.executable, temp_file],
                     capture_output=True,
                     text=True,
-                    timeout=60,  # 60秒超时
+                    timeout=120,  # 120秒超时
                     encoding='utf-8'
                 )
                 
@@ -345,28 +412,25 @@ COLOR_LIGHT_GRAY = RGBColor(248, 249, 250)
                     return {
                         "success": True,
                         "output": result.stdout,
-                        "code": code
+                        "code": code,
+                        "temp_file": temp_file
                     }
                 else:
                     return {
                         "success": False,
                         "error": result.stderr or result.stdout,
-                        "code": code
+                        "code": code,
+                        "temp_file": temp_file
                     }
                     
-            finally:
-                # 清理临时文件
-                try:
-                    os.unlink(temp_file)
-                except:
-                    pass
+            except subprocess.TimeoutExpired:
+                return {
+                    "success": False,
+                    "error": "代码执行超时",
+                    "code": code,
+                    "temp_file": temp_file
+                }
                     
-        except subprocess.TimeoutExpired:
-            return {
-                "success": False,
-                "error": "代码执行超时",
-                "code": code
-            }
         except Exception as e:
             return {
                 "success": False,
@@ -389,21 +453,22 @@ COLOR_LIGHT_GRAY = RGBColor(248, 249, 250)
 错误信息：
 {error_message}
 
-请分析错误原因并提供修复后的完整代码。常见问题和解决方案：
+请分析错误原因并提供修复后的完整代码。
+注意：只输出修复后的代码，不要包含任何解释。
+
+常见问题和解决方案：
 1. 导入错误：检查所有必要的导入语句
 2. 路径错误：确保文件路径正确
 3. 类型错误：检查变量类型和函数参数
 4. 语法错误：检查Python语法
-5. 编码错误：确保使用UTF-8编码
-
-请提供修复后的完整代码："""
+5. 编码错误：确保使用UTF-8编码"""
 
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
                     {"role": "user", "content": fix_prompt}
                 ],
-                max_tokens=4000,
+                max_tokens=10000,
                 temperature=0.1
             )
             
@@ -432,4 +497,9 @@ COLOR_LIGHT_GRAY = RGBColor(248, 249, 250)
 
     def clear_error_history(self):
         """清空错误历史"""
-        self.error_history.clear() 
+        self.error_history.clear()
+        
+    def _get_timestamp(self) -> str:
+        """获取时间戳"""
+        import datetime
+        return datetime.datetime.now().isoformat() 
