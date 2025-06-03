@@ -25,7 +25,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 logger = get_logger('main')
 
 class JarvisChainApp:
-    """JarvisChain 主应用程序类 - 简化版本，专注于运行逻辑"""
+    """JarvisChain 主应用程序类 """
     
     def __init__(self):
         self.master_agent = None
@@ -146,6 +146,21 @@ class JarvisChainApp:
                 clarification_text = message
             return await self.user_interaction_tool._arun(clarification_text)
             
+        elif response_type == "needs_user_input":
+            # 新增：处理ReAct循环中需要用户输入的情况
+            questions = response.get("questions", [])
+            is_suspended = response.get("is_suspended", False)
+            
+            if is_suspended:
+                print("⏸️ ReAct循环已暂停，等待您的回应...")
+            
+            if questions:
+                clarification_text = message + "\n\n请回答以下问题：\n" + "\n".join([f"• {q}" for q in questions])
+            else:
+                clarification_text = message
+                
+            return await self.user_interaction_tool._arun(f"💬 {clarification_text}")
+            
         elif response_type == "ppt_outline_generated":
             outline = response.get("outline", "")
             print("📋 PPT大纲已生成！")
@@ -154,12 +169,55 @@ class JarvisChainApp:
             print("=" * 60)
             return await self.user_interaction_tool._arun(f"{message}\n\n您可以基于此大纲创建PPT，或者提出修改建议。还需要其他帮助吗？")
             
+        elif response_type == "ppt_step_complete":
+            # 新增：PPT步骤完成处理
+            result = response.get("result", {})
+            step = result.get("step", "unknown")
+            
+            if step == "outline":
+                outline = result.get("outline", "")
+                print("📋 PPT大纲生成完成！")
+                print("=" * 60)
+                print(outline)
+                print("=" * 60)
+                return await self.user_interaction_tool._arun("大纲已生成！继续生成PPT代码吗？（输入'是'继续，或提出修改意见）")
+                
+            elif step == "code":
+                print("💻 PPT代码生成完成！")
+                code_preview = result.get("code", "")[:500] + "..." if len(result.get("code", "")) > 500 else result.get("code", "")
+                print("代码预览:")
+                print("-" * 40)
+                print(code_preview)
+                print("-" * 40)
+                return await self.user_interaction_tool._arun("代码已生成！继续生成PPT文件吗？（输入'是'继续）")
+                
+            elif step == "ppt":
+                ppt_path = result.get("ppt_path", "")
+                print("✅ PPT文件生成完成！")
+                print(f"📄 文件位置：{ppt_path}")
+                return await self.user_interaction_tool._arun("PPT创建完成！还需要其他帮助吗？")
+                
+            elif step == "complete":
+                ppt_path = result.get("ppt_path", "")
+                print("🎉 PPT完整创建流程完成！")
+                print(f"📄 文件位置：{ppt_path}")
+                print("📋 已完成：大纲生成 → 代码生成 → PPT文件创建")
+                return await self.user_interaction_tool._arun("PPT创建完全完成！还需要其他帮助吗？")
+            
+            return await self.user_interaction_tool._arun(f"{message}\n\n还需要其他帮助吗？")
+            
         elif response_type == "task_complete":
             result = response.get("result", {})
             if result:
                 print("✅ 任务完成！")
                 if "ppt_path" in result:
                     print(f"📄 PPT文件：{result['ppt_path']}")
+                # 检查是否是PPT创建结果
+                if isinstance(result, dict) and "step" in result:
+                    step = result.get("step")
+                    if step == "complete":
+                        print("🎉 PPT完整创建流程完成！")
+                        print("📋 已完成：大纲生成 → 代码生成 → PPT文件创建")
             return await self.user_interaction_tool._arun(f"{message}\n\n还需要其他帮助吗？")
             
         elif response_type == "task_failed":
@@ -192,12 +250,15 @@ class JarvisChainApp:
             # 通用响应处理
             suggestion = response.get("suggestion", "")
             react_steps = response.get("react_steps", 0)
+            is_suspended = response.get("is_suspended", False)
             
             full_message = f"{message}"
             if suggestion:
                 full_message += f"\n{suggestion}"
             if react_steps > 0:
                 full_message += f"\n\n🧠 ReAct处理步骤: {react_steps}"
+            if is_suspended:
+                full_message = f"⏸️ ReAct循环暂停中...\n{full_message}"
                 
             return await self.user_interaction_tool._arun(f"{full_message}\n\n还需要其他帮助吗？")
 

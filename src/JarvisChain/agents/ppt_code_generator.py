@@ -149,6 +149,7 @@ def search_and_download_image(query: str, filename: str, search_online=True) -> 
             # 提取代码
             response_text = response.choices[0].message.content
             code = self._extract_code_from_response(response_text)
+            
             if not code:
                 logger.error("❌ 无法从响应中提取代码")
                 return {"success": False, "error": "无法从响应中提取代码"}
@@ -191,23 +192,22 @@ def search_and_download_image(query: str, filename: str, search_online=True) -> 
 
     def _build_system_prompt(self) -> str:
         """构建系统提示词"""
-        return f"""你是一个专业的PPT代码生成助手，使用python-pptx库和tavily图片搜索api生成PY代码。
+        return f"""你是一个专业的Python代码生成助手，根据用户输入的ppt大纲，生成基于python-pptx库和tavily图片搜索api生成PY代码。
 
 可用的预置函数库：
 {self.pptx_functions}
 
 生成代码时请遵循以下规则：
-1. 参考预置函数库的定义
-2. 生成完整可执行的Python代码
-3. 不要在代码中包含任何解释或注释（除非必要）
-4. 确保代码可以直接运行，Python版本是3.9
-5. 只输出代码，不要有任何其他内容
+1. 参考预置函数库的定义，代码要包含所用到的预置函数
+2. 不要在代码中包含任何解释或注释
+3. 生成纯净的python代码，不要包含其他内容
+4. 所有包都可用，环境已配好。
 
 """
 
     def _build_user_prompt(self, user_prompt: str, context: Dict[str, Any] = None) -> str:
         """构建用户提示词"""
-        prompt = f"用户需求：{user_prompt}\n\n"
+        prompt = f"ppt大纲：{user_prompt}\n\n"
         
         if context:
             # 如果有PPT结构信息，添加到提示词中
