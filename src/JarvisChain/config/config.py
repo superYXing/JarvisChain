@@ -48,3 +48,5 @@ VECTOR_DB_CONFIG = {
 MEMORY_CONFIG = {
     "max_history": 10
 }
+
+
